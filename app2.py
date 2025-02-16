@@ -1,3 +1,5 @@
+pip install --upgrade pip setuptools wheel
+
 # app.py
 import streamlit as st
 import pandas as pd
