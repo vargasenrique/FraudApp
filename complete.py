@@ -349,13 +349,13 @@ def main():
             with st.expander("🔍 Debug: Transformación de Datos"):
                 st.write("Datos antes de encoding:", transaccion_prep.head())
             
-             # Aplicar encoders
+            # Aplicar encoders
             for columna, encoder in encoders.items():
                 if columna in transaccion_prep.columns:
                     try:
                         if columna == 'trans_date_trans_time':
-                        # Para fechas, primero convertimos a string en formato consistente
-                        transaccion_prep[columna] = pd.to_datetime(transaccion_prep[columna]).dt.strftime('%Y-%m-%d %H:%M:%S')
+                            # Para fechas, primero convertimos a string en formato consistente
+                            transaccion_prep[columna] = pd.to_datetime(transaccion_prep[columna]).dt.strftime('%Y-%m-%d %H:%M:%S')
                         transaccion_prep[columna] = encoder.transform(transaccion_prep[columna])
                     except Exception as e:
                         st.error(f"Error al aplicar encoder en columna {columna}: {str(e)}")
