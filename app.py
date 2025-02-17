@@ -22,7 +22,7 @@ def main():
 
     # Cargar el modelo
     try:
-        modelo_components = cargar_modelo('modelo_fraude_[TIMESTAMP].joblib')  # Reemplazar [TIMESTAMP] con el nombre real del archivo
+        modelo_components = cargar_modelo('modelo_fraude_20250216_200055.joblib')  # Reemplazar [TIMESTAMP] con el nombre real del archivo
         modelo = modelo_components['modelo']
         scaler = modelo_components['scaler']
         encoders = modelo_components['encoders']
