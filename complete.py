@@ -373,4 +373,21 @@ def main():
                 probabilidad = modelo.predict_proba(transaccion_scaled)[0][1]
             
             # Mostrar resultado
-            mostrar_resultado(prediccion, datos, probabil
+            mostrar_resultado(prediccion, datos, probabilidad)
+            
+            # Logging
+            logging.info(f"Predicción realizada: {prediccion} para transacción de ${datos['amount']}")
+
+        except Exception as e:
+            logging.error(f"Error al procesar la transacción: {str(e)}")
+            st.error(f"❌ Error al procesar la transacción: {str(e)}")
+            
+            # Mostrar detalles completos del error
+            with st.expander("🔍 Debug: Detalles del Error"):
+                st.write("Tipo de error:", type(e).__name__)
+                st.write("Mensaje:", str(e))
+                import traceback
+                st.code(traceback.format_exc())
+
+if __name__ == "__main__":
+    main()
