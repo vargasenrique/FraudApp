@@ -32,14 +32,26 @@ def cargar_modelo():
             
         model_bytes = BytesIO(response.content)
         modelo_components = joblib.load(model_bytes)
+        
+        # Mostrar información del modelo cargado
+        with st.expander("🔍 Información del Modelo"):
+            st.write("Características requeridas:", modelo_components['selected_features'])
+            if 'encoders' in modelo_components:
+                st.write("Categorías conocidas por encoder:")
+                for col, encoder in modelo_components['encoders'].items():
+                    st.write(f"{col}: {list(encoder.classes_)}")
+        
         return modelo_components
         
     except Exception as e:
         st.error(f"❌ Error al cargar el modelo: {str(e)}")
         return None
 
-def preparar_datos_para_modelo(datos, selected_features):
+def preparar_datos_para_modelo(datos, modelo_components):
     """Prepara los datos del formulario para el modelo"""
+    selected_features = modelo_components['selected_features']
+    encoders = modelo_components['encoders']
+    
     # Crear un DataFrame con todas las características necesarias
     current_time = datetime.now()
     
@@ -56,6 +68,18 @@ def preparar_datos_para_modelo(datos, selected_features):
         'merchant': [datos['merchant']]
     })
     
+    # Verificar y manejar valores categóricos
+    for col, encoder in encoders.items():
+        if col in df_base.columns:
+            # Verificar si hay valores nuevos
+            unique_values = df_base[col].unique()
+            unknown_values = [val for val in unique_values if val not in encoder.classes_]
+            
+            if unknown_values:
+                st.warning(f"⚠️ Valores desconocidos encontrados en {col}: {unknown_values}")
+                # Reemplazar valores desconocidos con el valor más común del encoder
+                df_base.loc[df_base[col].isin(unknown_values), col] = encoder.classes_[0]
+    
     # Asegurar que tenemos todas las columnas necesarias
     for feature in selected_features:
         if feature not in df_base.columns:
@@ -64,8 +88,16 @@ def preparar_datos_para_modelo(datos, selected_features):
     # Seleccionar solo las características necesarias en el orden correcto
     return df_base[selected_features]
 
-def crear_campos_formulario():
-    """Crea los campos del formulario con todos los datos necesarios"""
+def obtener_categorias_conocidas(modelo_components):
+    """Obtiene las categorías conocidas del encoder"""
+    if 'encoders' in modelo_components and 'category' in modelo_components['encoders']:
+        return list(modelo_components['encoders']['category'].classes_)
+    return ["grocery_pos", "shopping_pos", "entertainment", "food_dining", 
+            "health_fitness", "shopping_net", "kids_pets", "personal_care",
+            "home", "gas_transport", "misc_pos", "misc_net"]
+
+def crear_campos_formulario(categorias_conocidas):
+    """Crea los campos del formulario con las categorías conocidas"""
     col1, col2, col3 = st.columns(3)
     
     with col1:
@@ -73,9 +105,7 @@ def crear_campos_formulario():
         amount = st.number_input("Monto ($)", min_value=0.0, step=0.01)
         category = st.selectbox(
             "Categoría",
-            ["grocery_pos", "shopping_pos", "entertainment", "food_dining", 
-             "health_fitness", "shopping_net", "kids_pets", "personal_care",
-             "home", "gas_transport", "misc_pos", "misc_net"]
+            categorias_conocidas
         )
         merchant = st.text_input("Comerciante")
 
@@ -151,9 +181,12 @@ def main():
     if modelo_components is None:
         return
 
+    # Obtener categorías conocidas del modelo
+    categorias_conocidas = obtener_categorias_conocidas(modelo_components)
+
     # Crear formulario
     with st.form("transaction_form"):
-        datos = crear_campos_formulario()
+        datos = crear_campos_formulario(categorias_conocidas)
         submitted = st.form_submit_button("🔍 Evaluar Transacción")
 
     if submitted:
@@ -166,18 +199,21 @@ def main():
 
         try:
             # Preparar datos para el modelo
-            nueva_transaccion = preparar_datos_para_modelo(
-                datos, 
-                modelo_components['selected_features']
-            )
+            nueva_transaccion = preparar_datos_para_modelo(datos, modelo_components)
             
             # Aplicar encoders
+            transaccion_encoded = nueva_transaccion.copy()
             for columna, encoder in modelo_components['encoders'].items():
-                if columna in nueva_transaccion.columns:
-                    nueva_transaccion[columna] = encoder.transform(nueva_transaccion[columna])
+                if columna in transaccion_encoded.columns:
+                    try:
+                        transaccion_encoded[columna] = encoder.transform(transaccion_encoded[columna])
+                    except ValueError as e:
+                        st.error(f"Error al codificar la columna {columna}: {str(e)}")
+                        st.write(f"Valores permitidos: {list(encoder.classes_)}")
+                        return
             
             # Escalar datos
-            transaccion_scaled = modelo_components['scaler'].transform(nueva_transaccion)
+            transaccion_scaled = modelo_components['scaler'].transform(transaccion_encoded)
             
             # Realizar predicción
             prediccion = modelo_components['modelo'].predict(transaccion_scaled)[0]
@@ -192,7 +228,11 @@ def main():
             
         except Exception as e:
             st.error(f"❌ Error al procesar la transacción: {str(e)}")
-            st.expander("🔍 Detalles del Error").write(str(e))
+            with st.expander("🔍 Detalles del Error"):
+                st.write("Tipo de error:", type(e).__name__)
+                st.write("Mensaje:", str(e))
+                import traceback
+                st.code(traceback.format_exc())
 
 if __name__ == "__main__":
     main()
