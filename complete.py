@@ -22,7 +22,7 @@ st.set_page_config(
 @st.cache_resource
 def cargar_modelo():
     try:
-        GDRIVE_FILE_ID = "TU_ID_DE_ARCHIVO"
+        GDRIVE_FILE_ID = "1FuCvBzGOvN2q8AX_vEBc1vdbcuCj8j4i"
         download_url = f"https://drive.google.com/uc?id={GDRIVE_FILE_ID}"
         
         response = requests.get(download_url)
