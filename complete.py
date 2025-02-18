@@ -69,7 +69,7 @@ def cargar_modelo():
     """Carga el modelo desde Google Drive"""
     try:
         # URL de Google Drive (reemplazar con tu ID)
-        GDRIVE_FILE_ID = "1FuCvBzGOvN2q8AX_vEBc1vdbcuCj8j4i"
+        GDRIVE_FILE_ID = "TU_ID_DE_ARCHIVO"
         download_url = f"https://drive.google.com/uc?id={GDRIVE_FILE_ID}"
         
         st.info("📥 Descargando modelo...")
@@ -159,18 +159,25 @@ def preparar_datos_para_modelo(datos, selected_features):
     trans_datetime = datetime.combine(datos['transaction_date'], 
                                     datos['transaction_time'])
     
+    # Convertir fechas a valores numéricos
+    unix_time = int(trans_datetime.timestamp())
+    
+    # Para la fecha de nacimiento, convertir a días desde una fecha de referencia
+    fecha_referencia = datetime(1970, 1, 1)
+    dias_desde_nacimiento = (datos['dob'] - fecha_referencia.date()).days
+    
     # Crear DataFrame con las características exactas del modelo
     df_base = pd.DataFrame({
         'Unnamed: 0': [0],  # Valor por defecto
-        'trans_date_trans_time': [trans_datetime.strftime('%Y-%m-%d %H:%M:%S')],
+        'trans_date_trans_time': [unix_time],  # Usar timestamp en lugar de string
         'category': [datos['category']],
-        'amt': [datos['amount']],
+        'amt': [float(datos['amount'])],
         'first': [datos['first_name']],
         'gender': [datos['gender']],
         'zip': [datos['zip']],
-        'city_pop': [datos['city_pop']],
-        'dob': [datos['dob'].strftime('%Y-%m-%d')],
-        'unix_time': [int(trans_datetime.timestamp())]
+        'city_pop': [int(datos['city_pop'])],
+        'dob': [dias_desde_nacimiento],  # Usar días desde fecha referencia
+        'unix_time': [unix_time]
     })
     
     # Debug: Mostrar información de preparación
@@ -178,6 +185,9 @@ def preparar_datos_para_modelo(datos, selected_features):
         st.write("1. Características del modelo:", selected_features)
         st.write("2. Columnas en DataFrame:", df_base.columns.tolist())
         st.write("3. Valores antes de transformación:", df_base.iloc[0].to_dict())
+        st.write("4. Valores temporales convertidos:")
+        st.write(f"   - Unix Time: {unix_time}")
+        st.write(f"   - Días desde nacimiento: {dias_desde_nacimiento}")
         
         # Verificar columnas faltantes
         missing_cols = [col for col in selected_features if col not in df_base.columns]
@@ -213,18 +223,24 @@ def procesar_prediccion(df_preparado, modelo_components):
         scaler = modelo_components['scaler']
         encoders = modelo_components['encoders']
         
-        # Aplicar encoders a las columnas categóricas
+        # Aplicar encoders solo a las columnas categóricas que no son fechas
         df_encoded = df_preparado.copy()
-        for columna, encoder in encoders.items():
-            if columna in df_encoded.columns:
+        columnas_categoricas = ['category', 'first', 'gender']
+        
+        for columna in columnas_categoricas:
+            if columna in df_encoded.columns and columna in encoders:
                 try:
-                    df_encoded[columna] = encoder.transform(df_encoded[columna])
+                    df_encoded[columna] = encoders[columna].transform(df_encoded[columna])
                 except Exception as e:
                     st.warning(f"⚠️ No se pudo codificar la columna {columna}: {str(e)}")
         
         # Debug: Mostrar datos después del encoding
         with st.expander("🔍 Debug: Datos Codificados"):
             st.write("Valores después de encoding:", df_encoded.iloc[0].to_dict())
+        
+        # Asegurar que todas las columnas son numéricas
+        for col in df_encoded.columns:
+            df_encoded[col] = pd.to_numeric(df_encoded[col], errors='raise')
         
         # Escalar datos
         datos_scaled = scaler.transform(df_encoded)
